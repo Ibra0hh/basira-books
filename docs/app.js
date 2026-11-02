@@ -1,6 +1,6 @@
 import { createBook } from './vendor/openpageflip/index.js';
 import { buildBookSections } from './book-pages.js';
-import { paginateSections } from './paginate.js';
+import { paginateSections } from './paginate.js?v=reader-2';
 
 const $ = selector => document.querySelector(selector);
 const escapeHTML = (value = '') => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -20,7 +20,7 @@ let busy = false;
 let rebuilding = false;
 let resizeTimer, toastTimer;
 let lastDimensions = '';
-let fontSize = Math.max(18,Math.min(29,Number(storage.read('fontSize',23)) || 23));
+let fontSize = Math.max(18,Math.min(29,Number(storage.read('fontSize',19)) || 19));
 const bookmarks = readMap('flipbook:bookmarks');
 const lastRead = readMap('flipbook:lastRead');
 
@@ -50,9 +50,9 @@ function dimensions() {
   const viewportWidth = document.documentElement.clientWidth;
   const single = viewportWidth <= 900;
   const width = single
-    ? Math.min(450,viewportWidth - 44)
-    : Math.floor(Math.min(640,(Math.min(1560,viewportWidth) - 150) / 2,Math.max(500,window.innerHeight - 265) * .82));
-  return {single,width,height:Math.round(width * (single ? 1.48 : 1 / .82))};
+    ? Math.min(650,viewportWidth - 32)
+    : Math.floor(Math.min(760,(Math.min(1660,viewportWidth) - 96) / 2));
+  return {single,width,height:Math.round(width * (single ? 1.48 : 1.32))};
 }
 function currentPosition() {
   const page = pages[book?.page || 0];

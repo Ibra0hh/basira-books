@@ -173,8 +173,8 @@ export function paginateSections(sections) {
 
   function flowingPages(section) {
     let offset = 0;
-    let current = newPage(section, offset, true);
-    const nextPage = () => { current = newPage(section, ++offset, true); };
+    let current = newPage(section, offset, section.kind !== 'content');
+    const nextPage = () => { current = newPage(section, ++offset, false); };
     for (const block of section.blocks || []) {
       if (!String(block.text || '').length) continue;
       let remaining = String(block.text);
