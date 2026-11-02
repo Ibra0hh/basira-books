@@ -1,0 +1,47 @@
+{
+  "package": "@openpageflip/core",
+  "version": "0.7.0",
+  "license": "MIT",
+  "source": "https://github.com/benhonda/openpageflip",
+  "tarball": "https://registry.npmjs.org/@openpageflip/core/-/core-0.7.0.tgz",
+  "tarballIntegrity": "sha512-b7HxPFIEABKc6G1rSgWjLQ46hAbVfLNye21WWpcawZGItUy+xyPA7v76uxuHegSTuyltEkOSH6gnncaqWceIRA==",
+  "tarballSha1": "e78defbfaa3c299e3fc5cc4942532c2575cff720",
+  "files": {
+    "LICENSE": {
+      "bytes": 1207,
+      "sha256": "75f676e29d5798c8e533bd592060acc81525ee4e9d3b017d1fafb18d6d24d9d7"
+    },
+    "upstream-package.json": {
+      "bytes": 1014,
+      "sha256": "a4b9dd743f192133915383fb502e578e6ae0a61c931c7b6d9c92b2134c9265a9"
+    },
+    "UPSTREAM-README.md": {
+      "bytes": 2368,
+      "sha256": "c12b9b09f625d391be1942ff77183849074dcbb58d5138052a9015e64a22178e"
+    },
+    "index.js": {
+      "bytes": 79710,
+      "sha256": "85852471f19767b562df017e2d41c03c24bb62fc53f95c5e24ab10e3bd82fe63"
+    },
+    "index.js.map": {
+      "bytes": 166254,
+      "sha256": "76c0c0ded8419fcf614df0ab4813a703f8061d332011ddddb290d89966b75541"
+    },
+    "index.iife.js": {
+      "bytes": 34479,
+      "sha256": "7680f9a0b8e01a5c328b04519326ebf72ac6a808afde2c6f029348c9cea04f11"
+    },
+    "index.iife.js.map": {
+      "bytes": 163720,
+      "sha256": "55fdd502f5c6a804d97378c5fe8a2a061872f9d1f25a229b6c3ec04b5b678e77"
+    },
+    "index.d.ts": {
+      "bytes": 17259,
+      "sha256": "b4f540cacc66bd106c18f73e2d5e1103a71327bbcbeb0e09fe34af44eff570b7"
+    },
+    "styles.css": {
+      "bytes": 1876,
+      "sha256": "263dc4c16a2eb949f0db245abeb4caf1f7577e8b2f559f066f8563d3086af6d8"
+    }
+  }
+}

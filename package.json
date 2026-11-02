@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "check": "node scripts/build.mjs --check",
+    "check": "node scripts/build.mjs --check && node --test scripts/book-pages.test.mjs",
     "preview": "python -m http.server 4173 --directory docs"
   }
 }

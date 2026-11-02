@@ -1,235 +1,317 @@
-'use strict';
+import { createBook } from './vendor/openpageflip/index.js';
+import { buildBookSections } from './book-pages.js';
+import { paginateSections } from './paginate.js';
 
-const $ = (selector) => document.querySelector(selector);
-const icons = {
-  moon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.4 14.3A8.7 8.7 0 0 1 9.7 3.6 8.8 8.8 0 1 0 20.4 14.3Z"/></svg>',
-  sun: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5"/></svg>',
-  bookmark: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4Z"/></svg>',
-  list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h12M4 12h12M4 19h12M20 5h.01M20 12h.01M20 19h.01"/></svg>',
-  right: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6"/></svg>',
-  left: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H4m6-6-6 6 6 6"/></svg>'
-};
-const escapeHTML = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-const normalize = (text) => String(text).normalize('NFKD').replace(/[\u064b-\u065f\u0670\u0640]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').toLowerCase().trim();
-const arabicNumber = (number) => new Intl.NumberFormat('ar').format(number);
+const $ = selector => document.querySelector(selector);
+const escapeHTML = (value = '') => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const arabic = value => new Intl.NumberFormat('ar-u-nu-arab').format(value);
+const normalize = value => String(value).normalize('NFKD').replace(/[\u064b-\u065f\u0670\u0640]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').trim().toLowerCase();
 const storage = {
-  read(key, fallback) { try { const value = JSON.parse(localStorage.getItem(`basira:${key}`)); return value ?? fallback; } catch { return fallback; } },
-  write(key, value) { try { localStorage.setItem(`basira:${key}`, JSON.stringify(value)); } catch { /* Reading remains usable when storage is unavailable. */ } }
+  read(key, fallback) { try { return JSON.parse(localStorage.getItem('basira:' + key)) ?? fallback; } catch { return fallback; } },
+  write(key, value) { try { localStorage.setItem('basira:' + key, JSON.stringify(value)); } catch { /* Reading works without storage. */ } }
 };
-let data;
-let currentBook;
-let currentChapter = null;
-let route = '';
-let toastTimeout;
-let fontSize = Math.max(18, Math.min(30, Number(storage.read('fontSize', 23)) || 23));
-let bookmarks = storage.read('bookmarks', {});
-if (typeof bookmarks !== 'object' || bookmarks === null || Array.isArray(bookmarks)) bookmarks = {};
-let lastRead = storage.read('lastRead', {});
-if (typeof lastRead !== 'object' || lastRead === null || Array.isArray(lastRead)) lastRead = {};
+const icons = {
+  moon:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.4 14.3A8.7 8.7 0 0 1 9.7 3.6 8.8 8.8 0 1 0 20.4 14.3Z"/></svg>',
+  sun:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5"/></svg>'
+};
+let data, currentBook, book;
+let pages = [];
+let busy = false;
+let rebuilding = false;
+let resizeTimer, toastTimer;
+let lastDimensions = '';
+let fontSize = Math.max(18,Math.min(29,Number(storage.read('fontSize',23)) || 23));
+const bookmarks = readMap('flipbook:bookmarks');
+const lastRead = readMap('flipbook:lastRead');
 
+function readMap(key) {
+  const result = storage.read(key,{});
+  return result && typeof result === 'object' && !Array.isArray(result) ? result : {};
+}
 function notify(message) {
   $('#toast').textContent = message;
   $('#toast').classList.add('show');
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => $('#toast').classList.remove('show'), 2600);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('#toast').classList.remove('show'),2400);
 }
-
-function applyTheme(theme) {
-  const dark = theme === 'dark';
-  document.body.classList.toggle('dark', dark);
+function applyTheme(value) {
+  const dark = value === 'dark';
+  document.body.classList.toggle('dark',dark);
   $('#theme-button').innerHTML = dark ? icons.sun : icons.moon;
-  $('#theme-button').setAttribute('aria-label', dark ? 'تفعيل الوضع النهاري' : 'تفعيل الوضع الليلي');
-  $('#theme-button').title = dark ? 'الوضع النهاري' : 'الوضع الليلي';
-  document.querySelector('meta[name="theme-color"]').content = dark ? '#15242b' : '#f7f4ec';
+  $('#theme-button').setAttribute('aria-label',dark ? 'تفعيل الوضع النهاري' : 'تفعيل الوضع الليلي');
+  document.querySelector('meta[name="theme-color"]').content = dark ? '#172229' : '#e8e4dc';
 }
-
-function applyFontSize() {
-  document.documentElement.style.setProperty('--body-size', `${fontSize}px`);
-  $('#font-increase').disabled = fontSize >= 30;
-  $('#font-decrease').disabled = fontSize <= 18;
+function applyFont() {
+  document.documentElement.style.setProperty('--body-size',fontSize + 'px');
+  $('#font-increase').disabled = fontSize >= 29 || !book;
+  $('#font-decrease').disabled = fontSize <= 18 || !book;
 }
-
-function openToc() {
-  $('#sidebar').inert = false;
-  $('#sidebar').removeAttribute('aria-hidden');
-  $('#sidebar').setAttribute('role', 'dialog');
-  $('#sidebar').setAttribute('aria-modal', 'true');
-  $('#sidebar').classList.add('open');
-  $('#drawer-backdrop').hidden = false;
-  document.body.classList.add('drawer-open');
-  $('#open-toc').setAttribute('aria-expanded', 'true');
-  $('#chapter-search').focus();
-  if ($('#chapter-search').disabled) $('#close-toc').focus();
-  document.querySelectorAll('.site-header, #books-nav, #reader, .skip-link').forEach(element => { element.inert = true; });
+function dimensions() {
+  const viewportWidth = document.documentElement.clientWidth;
+  const single = viewportWidth <= 900;
+  const width = single
+    ? Math.min(450,viewportWidth - 44)
+    : Math.floor(Math.min(640,(Math.min(1560,viewportWidth) - 150) / 2,Math.max(500,window.innerHeight - 265) * .82));
+  return {single,width,height:Math.round(width * (single ? 1.48 : 1 / .82))};
 }
-
-function closeToc(restoreFocus = false) {
-  const wasOpen = $('#sidebar').classList.contains('open');
-  $('#sidebar').classList.remove('open');
-  $('#drawer-backdrop').hidden = true;
-  document.body.classList.remove('drawer-open');
-  $('#open-toc').setAttribute('aria-expanded', 'false');
-  document.querySelectorAll('.site-header, #books-nav, #reader, .skip-link').forEach(element => { element.inert = false; });
-  if (restoreFocus && wasOpen) $('#open-toc').focus();
-  const mobile = window.matchMedia('(max-width:900px)').matches;
-  $('#sidebar').inert = mobile;
-  if (mobile) $('#sidebar').setAttribute('aria-hidden', 'true');
-  else $('#sidebar').removeAttribute('aria-hidden');
-  $('#sidebar').removeAttribute('role');
-  $('#sidebar').removeAttribute('aria-modal');
+function currentPosition() {
+  const page = pages[book?.page || 0];
+  return page ? {sectionId:page.sectionId,offset:page.offset} : {sectionId:'cover',offset:0};
 }
-
-function renderBookNav() {
-  $('#books-nav').innerHTML = data.books.map(book => `<a class="book-tab${book.id === currentBook.id ? ' active' : ''}" href="#${book.id}/intro" ${book.id === currentBook.id ? 'aria-current="page"' : ''}>${escapeHTML(book.title)}</a>`).join('');
+function pageForPosition(position) {
+  if (!position || typeof position !== 'object') return 0;
+  const matches = pages.map((page,index) => ({page,index})).filter(item => item.page.sectionId === position.sectionId);
+  if (!matches.length) return 0;
+  return (matches.find(item => item.page.offset === position.offset) || matches.at(-1)).index;
 }
-
-function renderSidebar() {
+function chapterPage(chapterId) {
+  return pages.findIndex(page => page.chapterId === chapterId && page.kind === 'chapter-title');
+}
+function routePage(segment) {
+  if (!segment || segment === 'intro' || segment === 'cover') return 0;
+  if (/^page-\d+$/.test(segment)) return Math.min(pages.length - 1,Math.max(0,Number(segment.slice(5)) - 1));
+  if (segment === 'about') return Math.max(0,pages.findIndex(page => page.sectionId === 'intro'));
+  return Math.max(0,chapterPage(segment));
+}
+function renderNav() {
+  $('#books-nav').innerHTML = data.books.map(item => '<a class="book-tab' + (item.id === currentBook.id ? ' active' : '') + '" href="#' + item.id + '/intro"' + (item.id === currentBook.id ? ' aria-current="page"' : '') + '>' + escapeHTML(item.title) + '</a>').join('');
+  const ordinal = ['الأول','الثاني','الثالث','الرابع'][data.books.findIndex(item => item.id === currentBook.id)];
+  $('#current-book-label').textContent = 'الكتاب ' + ordinal + ': ' + currentBook.title;
+}
+function renderToc() {
   const query = normalize($('#chapter-search').value);
-  const book = currentBook;
-  $('#chapter-search').disabled = !book.chapters.length;
-  if (!book.chapters.length) {
-    $('#chapter-nav').innerHTML = `<a class="toc-intro active" href="#${book.id}/intro" aria-current="page">عن الكتاب</a><p class="planned-sidebar">هذا الكتاب في مرحلة التخطيط. سنضيف فهرسه ونصوصه مع تقدّم المشروع.</p>`;
-    $('#search-status').textContent = '';
-    $('#saved-reading').innerHTML = '';
-    return;
-  }
   let matches = 0;
-  let html = !query ? `<a class="toc-intro${!currentChapter ? ' active' : ''}" href="#${book.id}/intro" ${!currentChapter ? 'aria-current="page"' : ''}>عن هذه المسودة</a>` : '';
-  for (const part of book.parts) {
-    const chapters = book.chapters.filter(chapter => chapter.partId === part.id && (!query || normalize([chapter.title, chapter.summary, part.title, ...chapter.outline].join(' ')).includes(query)));
+  let html = query ? '' : '<a class="chapter-link" href="#' + currentBook.id + '/intro"><span>الغلاف</span><small>١</small></a><a class="chapter-link" href="#' + currentBook.id + '/about"><span>عن هذه المسودة</span><small>' + arabic(routePage('about') + 1) + '</small></a>';
+  for (const part of currentBook.parts) {
+    const chapters = currentBook.chapters.filter(chapter => chapter.partId === part.id && (!query || normalize([chapter.title,chapter.summary,part.title,...chapter.outline].join(' ')).includes(query)));
     if (!chapters.length) continue;
     matches += chapters.length;
-    html += `<section class="toc-group"><h3 class="toc-part">${escapeHTML(part.title)}</h3>${chapters.map(chapter => `<a class="toc-link${currentChapter?.id === chapter.id ? ' active' : ''}" href="#${book.id}/${chapter.id}" ${currentChapter?.id === chapter.id ? 'aria-current="page"' : ''}>${escapeHTML(chapter.title)}</a>`).join('')}</section>`;
+    html += '<section class="toc-group"><h3>' + escapeHTML(part.title) + '</h3>' + chapters.map(chapter => '<a class="chapter-link" href="#' + currentBook.id + '/' + chapter.id + '"><span>' + escapeHTML(chapter.title) + '</span><small>' + arabic(chapterPage(chapter.id) + 1) + '</small></a>').join('') + '</section>';
   }
-  if (!matches) html = '<p class="empty-search">لا توجد فصول تطابق بحثك. جرّب كلمة أخرى.</p>';
-  $('#chapter-nav').innerHTML = html;
-  $('#search-status').textContent = query ? `${arabicNumber(matches)} فصلًا يطابق البحث` : '';
-  renderSavedReading();
+  $('#chapter-nav').innerHTML = matches || !query ? html : '<p class="empty-search">لا توجد فصول تطابق بحثك.</p>';
+  $('#search-status').textContent = query ? arabic(matches) + ' فصلًا يطابق البحث' : '';
+  $('#saved-reading').innerHTML = (bookmarks[currentBook.id] ? '<button data-saved="bookmark">العودة إلى إشارتي</button>' : '') + (lastRead[currentBook.id] ? '<button data-saved="last">متابعة القراءة</button>' : '');
 }
-
-function renderSavedReading() {
-  const savedId = bookmarks[currentBook.id];
-  const savedChapter = savedId === 'intro' ? {id:'intro', title:'عن هذه المسودة'} : currentBook.chapters.find(chapter => chapter.id === savedId);
-  const lastId = lastRead[currentBook.id];
-  const previous = currentBook.chapters.find(chapter => chapter.id === lastId);
-  const links = [];
-  if (savedChapter && savedId !== (currentChapter?.id || 'intro')) links.push(`<a href="#${currentBook.id}/${savedId}">إشارتي: ${escapeHTML(savedChapter.title)}</a>`);
-  if (!currentChapter && previous && previous.id !== savedId) links.push(`<a href="#${currentBook.id}/${previous.id}">متابعة القراءة: ${escapeHTML(previous.title)}</a>`);
-  $('#saved-reading').innerHTML = links.join('');
-  const saved = savedId === (currentChapter?.id || 'intro');
-  $('#bookmark-button').setAttribute('aria-pressed', String(saved));
-  $('#bookmark-button').setAttribute('aria-label', saved ? 'إزالة إشارة القراءة' : 'حفظ موضع القراءة');
-  $('#bookmark-button').title = saved ? 'إزالة إشارة القراءة' : 'حفظ موضع القراءة';
-  $('#bookmark-button').disabled = currentBook.status === 'planned';
+function visibleIndexes() {
+  const start = book?.page || 0;
+  if (!book || book.orientation === 'portrait' || start === 0 || start === pages.length - 1) return [start];
+  return [start,Math.min(pages.length - 1,start + 1)];
 }
-
-function renderOverview() {
-  const book = currentBook;
-  $('#reading-content').innerHTML = `<div class="book-overview"><div class="book-heading"><h1>${escapeHTML(book.title)}</h1><p class="book-subtitle">من حياتي تبدأ الحكاية</p><p class="book-meta">الكتاب الأول · مسودة قيد الكتابة</p>${data.series.author ? `<p class="author">بقلم ${escapeHTML(data.series.author)}</p>` : ''}</div><img class="book-cover" src="assets/alkatib-cover.png" alt="غلاف الكاتب، الكتاب الأول من سلسلة البصيرة" width="1088" height="1456"><div class="overview-copy"><p class="book-summary">تبدأ هذه الرحلة من التجربة الشخصية، ثم تتّسع إلى الإنسان والعلوم والحياة العملية.</p><div class="hero-actions"><a class="primary-button" href="#${book.id}/${book.chapters[0].id}">تصفّح الفصول</a><button class="secondary-button" id="download-button">تنزيل الكتاب</button></div></div></div><section class="introduction prose"><h2>${escapeHTML(data.introduction.title)}</h2>${data.introduction.paragraphs.map(paragraph => `<p>${escapeHTML(paragraph)}</p>`).join('')}</section>`;
-  $('#download-button').addEventListener('click', () => $('#download-dialog').showModal());
+function updateUI(save = true) {
+  if (!book) return;
+  const index = book.page;
+  const visible = visibleIndexes();
+  const startNumber = index + 1;
+  const endNumber = visible.at(-1) + 1;
+  const range = startNumber === endNumber ? arabic(startNumber) : arabic(startNumber) + '–' + arabic(endNumber);
+  $('#page-count').textContent = range + ' / ' + arabic(pages.length);
+  $('#page-input').value = String(startNumber);
+  $('#page-input').max = String(pages.length);
+  $('#page-progress').max = String(pages.length);
+  $('#page-progress').value = String(startNumber);
+  $('#page-progress').setAttribute('aria-valuetext','الصفحة ' + range + ' من ' + arabic(pages.length));
+  $('#previous-page').disabled = busy || index === 0;
+  $('#next-page').disabled = busy || visible.at(-1) === pages.length - 1;
+  $('#open-book').disabled = busy;
+  $('#book-stage').classList.toggle('closed',index === 0 && !busy);
+  $('#book-stage').classList.toggle('back-closed',index === pages.length - 1 && !busy);
+  $('#cover-actions').hidden = index !== 0;
+  $('#resume-reading').hidden = !lastRead[currentBook.id];
+  const position = currentPosition();
+  const saved = bookmarks[currentBook.id];
+  const isSaved = saved && visible.some(i => pages[i].sectionId === saved.sectionId && pages[i].offset === saved.offset);
+  $('#bookmark-button').setAttribute('aria-pressed',String(Boolean(isSaved)));
+  $('#bookmark-button').setAttribute('aria-label',isSaved ? 'إزالة إشارة القراءة' : 'حفظ موضع القراءة');
+  pages.forEach((page,i) => {
+    const hidden = !visible.includes(i);
+    page.element.inert = hidden;
+    if (hidden) page.element.setAttribute('aria-hidden','true');
+    else page.element.removeAttribute('aria-hidden');
+  });
+  const pageTitle = pages[index]?.title || currentBook.title;
+  $('#reading-status').textContent = 'الصفحة ' + range + ' من ' + arabic(pages.length) + '، ' + pageTitle;
+  document.title = (index && pageTitle !== currentBook.title ? pageTitle + ' — ' : '') + currentBook.title + ' — البصيرة';
+  if (save) {
+    history.replaceState(null,'','#' + currentBook.id + '/' + (index ? 'page-' + startNumber : 'intro'));
+    if (index > 0) { lastRead[currentBook.id] = position; storage.write('flipbook:lastRead',lastRead); }
+  }
 }
-
-function renderChapter() {
-  const chapter = currentChapter;
-  const part = currentBook.parts.find(item => item.id === chapter.partId);
-  const hasManuscript = chapter.paragraphs.length > 0;
-  const status = hasManuscript ? 'مسودة نص للمراجعة' : 'مخطط فصل · النص قيد الكتابة';
-  $('#reading-content').innerHTML = `<header class="chapter-header"><p class="chapter-kicker">${escapeHTML(part.title)} · الفصل ${arabicNumber(chapter.number)}</p><h1>${escapeHTML(chapter.title)}</h1><p class="chapter-summary">${escapeHTML(chapter.summary)}</p><p class="draft-note">${status}</p></header>${hasManuscript ? `<section class="prose manuscript">${chapter.paragraphs.map(paragraph => `<p>${escapeHTML(paragraph)}</p>`).join('')}</section>` : `<section class="prose outline-content"><h2>خطة الفصل</h2>${chapter.outline.map(paragraph => `<p>${escapeHTML(paragraph)}</p>`).join('')}</section><p class="manuscript-status">هذه محاور أولية للفصل. سيُضاف النص بعد جمع مادة الكاتب ومراجعة صياغتها.</p>`}`;
+function buildReader(position = null, segment = null) {
+  rebuilding = true;
+  const preserved = position || currentPosition();
+  if (book) { book.destroy(); book = null; }
+  const sizing = dimensions();
+  lastDimensions = JSON.stringify(sizing);
+  document.documentElement.style.setProperty('--page-width',sizing.width + 'px');
+  document.documentElement.style.setProperty('--page-height',sizing.height + 'px');
+  document.documentElement.style.setProperty('--body-size',fontSize + 'px');
+  $('#book-stage').classList.toggle('single',sizing.single);
+  $('#book-stage').classList.remove('closed','back-closed');
+  $('#book-stage').style.height = '';
+  $('#book-shift').innerHTML = '<div id="flipbook"></div>';
+  pages = paginateSections(buildBookSections(data,currentBook));
+  const fragment = document.createDocumentFragment();
+  for (const page of pages) fragment.append(page.element);
+  $('#flipbook').append(fragment);
+  $('#flipbook').querySelectorAll('[data-chapter-page]').forEach(element => {
+    element.textContent = arabic(chapterPage(element.dataset.chapterPage) + 1);
+  });
+  const startPage = segment !== null ? routePage(segment) : pageForPosition(preserved);
+  book = createBook($('#flipbook'),{
+    width:sizing.width,height:sizing.height,size:'fixed',autoSize:false,
+    layout:sizing.single ? 'single' : 'spread',binding:'right',cover:true,
+    startPage,flipDuration:750,shadows:true,shadowOpacity:.28,
+    click:'edges',drag:true,swipe:true,hover:true
+  });
+  book.on('flip',() => updateUI());
+  book.on('changeState',({state}) => {
+    busy = state === 'flipping' || state === 'user_fold';
+    if (busy) $('#book-stage').classList.remove('closed','back-closed');
+    if (state === 'read') updateUI();
+  });
+  busy = false;
+  rebuilding = false;
+  applyFont();
+  renderToc();
+  updateUI();
 }
-
-function renderPlannedBook() {
-  const index = data.books.findIndex(book => book.id === currentBook.id);
-  const ordinals = ['الأول', 'الثاني', 'الثالث', 'الرابع'];
-  $('#reading-content').innerHTML = `<section class="planned-book"><p class="planned-number">الكتاب ${ordinals[index]} من البصيرة</p><h1>${escapeHTML(currentBook.title)}</h1><p>${escapeHTML(currentBook.description)}</p><p class="draft-note">قيد التخطيط. سيُضاف المحتوى حين نبدأ كتابة هذا الكتاب.</p><a class="secondary-button" href="#alkatib/intro">العودة إلى الكاتب ${icons.left}</a></section>`;
-  $('#bookmark-button').disabled = true;
-  $('#bookmark-button').setAttribute('aria-pressed', 'false');
-  $('#bookmark-button').setAttribute('aria-label', 'حفظ موضع القراءة');
+async function goToPage(index, animate = true) {
+  if (!book || busy || !Number.isFinite(index)) return;
+  const target = Math.min(pages.length - 1,Math.max(0,Math.floor(index)));
+  if (animate) await book.flipTo(target);
+  else book.turnTo(target);
+  updateUI();
 }
-
-function renderPagination() {
-  if (!currentBook.chapters.length) { $('#chapter-pagination').innerHTML = ''; return; }
-  const index = currentChapter ? currentBook.chapters.findIndex(item => item.id === currentChapter.id) : -1;
-  const previous = index > 0 ? currentBook.chapters[index - 1] : index === 0 ? {id:'intro', title:'عن هذه المسودة'} : null;
-  const next = currentBook.chapters[index + 1];
-  $('#chapter-pagination').innerHTML = `${previous ? `<a class="page-link previous" href="#${currentBook.id}/${previous.id}">${icons.right}<span><small>السابق</small>${escapeHTML(previous.title)}</span></a>` : ''}${next ? `<a class="page-link next" href="#${currentBook.id}/${next.id}"><span><small>التالي</small>${escapeHTML(next.title)}</span>${icons.left}</a>` : `<a class="page-link next" href="#alrasul/intro"><span><small>الكتاب التالي في السلسلة</small>الرسول</span>${icons.left}</a>`}`;
+async function turn(direction) {
+  if (!book || busy) return;
+  const changed = await (direction === 'next' ? book.flipNext() : book.flipPrev());
+  if (changed) updateUI();
 }
-
-function navigate(initial = false) {
+function plannedBook() {
+  if (book) { book.destroy(); book = null; }
+  pages = [];
+  $('#bookmark-button').setAttribute('aria-pressed','false');
+  $('#bookmark-button').setAttribute('aria-label','حفظ موضع القراءة');
+  $('#reading-status').textContent = '';
+  $('#book-stage').className = 'book-stage single';
+  $('#book-stage').style.height = 'auto';
+  $('#book-shift').innerHTML = '<section class="planned-view"><p class="status-label">قيد التخطيط</p><h1>' + escapeHTML(currentBook.title) + '</h1><p>' + escapeHTML(currentBook.description) + '</p><p class="status-label">سنضيف صفحات هذا الكتاب عندما نبدأ كتابته.</p><a class="primary-button" href="#alkatib/intro">العودة إلى الكاتب</a></section>';
+  document.title = currentBook.title + ' — البصيرة';
+}
+function navigate() {
   let parts;
   try { parts = decodeURIComponent(location.hash.slice(1)).split('/'); } catch { parts = []; }
-  const nextBook = data.books.find(book => book.id === parts[0]) || data.books[0];
-  const nextChapter = nextBook.chapters.find(chapter => chapter.id === parts[1]) || null;
-  const changedBook = currentBook?.id !== nextBook.id;
-  currentBook = nextBook;
-  currentChapter = nextChapter;
-  route = `${currentBook.id}/${currentChapter?.id || 'intro'}`;
-  if (location.hash !== `#${route}`) history.replaceState(null, '', `#${route}`);
-  if (changedBook) $('#chapter-search').value = '';
-  if (currentChapter) { lastRead[currentBook.id] = currentChapter.id; storage.write('lastRead', lastRead); }
-  document.title = `${currentChapter ? `${currentChapter.title} — ` : ''}${currentBook.title} — البصيرة`;
-  $('#current-book-label').textContent = currentBook.title;
-  renderBookNav();
-  renderSidebar();
-  if (currentBook.status === 'planned') renderPlannedBook();
-  else if (currentChapter) renderChapter();
-  else renderOverview();
-  renderPagination();
-  closeToc();
-  if (!initial) {
-    $('#reading-content').focus({preventScroll:true});
-    window.scrollTo({top:0, behavior:'instant'});
+  const selected = data.books.find(item => item.id === parts[0]) || data.books[0];
+  const changed = selected.id !== currentBook?.id;
+  currentBook = selected;
+  renderNav();
+  const planned = selected.status === 'planned';
+  for (const id of ['page-controls','next-page','previous-page']) $('#' + id).hidden = planned;
+  for (const id of ['download-button','open-toc','bookmark-button']) $('#' + id).disabled = planned;
+  $('#linear-reader').hidden = planned;
+  $('#cover-actions').hidden = planned;
+  if (planned) { plannedBook(); applyFont(); return; }
+  if (changed || !book) { $('#chapter-search').value = ''; buildReader(null,parts[1] || 'intro'); }
+  else goToPage(routePage(parts[1]),false);
+}
+function toggleBookmark() {
+  if (!book) return;
+  if ($('#bookmark-button').getAttribute('aria-pressed') === 'true') {
+    delete bookmarks[currentBook.id]; notify('أُزيلت إشارة القراءة');
+  } else {
+    bookmarks[currentBook.id] = currentPosition(); notify('حُفظت الصفحة على هذا الجهاز');
   }
+  storage.write('flipbook:bookmarks',bookmarks);
+  updateUI(false);
 }
-
-function initialize() {
-  applyTheme(storage.read('theme', 'light'));
-  applyFontSize();
-  $('#bookmark-button').innerHTML = icons.bookmark;
-  $('#open-toc').innerHTML = icons.list;
-  $('.skip-link').addEventListener('click', event => {
-    event.preventDefault();
-    $('#reading-content').focus({preventScroll:true});
-    $('#reading-content').scrollIntoView({block:'start'});
+function changeFont(delta) {
+  if (!book || busy) return;
+  const position = currentPosition();
+  fontSize = Math.min(29,Math.max(18,fontSize + delta));
+  storage.write('fontSize',fontSize);
+  buildReader(position);
+  notify('تم ضبط الخط وتوزيع النص على الصفحات');
+}
+function wireEvents() {
+  $('#next-page').addEventListener('click',() => turn('next'));
+  $('#previous-page').addEventListener('click',() => turn('previous'));
+  $('#open-book').addEventListener('click',() => turn('next'));
+  $('#book-stage').addEventListener('click',event => {
+    if (book?.page === 0 && !busy && !event.target.closest('a,button,input')) turn('next');
   });
-  $('#theme-button').addEventListener('click', () => {
+  $('#resume-reading').addEventListener('click',() => goToPage(pageForPosition(lastRead[currentBook.id])));
+  $('#bookmark-button').addEventListener('click',toggleBookmark);
+  $('#font-increase').addEventListener('click',() => changeFont(1));
+  $('#font-decrease').addEventListener('click',() => changeFont(-1));
+  $('#theme-button').addEventListener('click',() => {
     const theme = document.body.classList.contains('dark') ? 'light' : 'dark';
-    applyTheme(theme); storage.write('theme', theme);
+    applyTheme(theme); storage.write('theme',theme);
   });
-  $('#font-increase').addEventListener('click', () => { fontSize = Math.min(30, fontSize + 1); applyFontSize(); storage.write('fontSize', fontSize); notify('تم تكبير النص'); });
-  $('#font-decrease').addEventListener('click', () => { fontSize = Math.max(18, fontSize - 1); applyFontSize(); storage.write('fontSize', fontSize); notify('تم تصغير النص'); });
-  $('#bookmark-button').addEventListener('click', () => {
-    const chapterId = currentChapter?.id || 'intro';
-    if (bookmarks[currentBook.id] === chapterId) { delete bookmarks[currentBook.id]; notify('أُزيلت إشارة القراءة'); }
-    else { bookmarks[currentBook.id] = chapterId; notify('حُفظ موضع القراءة على هذا الجهاز'); }
-    storage.write('bookmarks', bookmarks); renderSavedReading();
+  $('#open-toc').addEventListener('click',() => {
+    renderToc(); $('#toc-dialog').showModal(); $('#chapter-search').focus();
   });
-  $('#chapter-search').addEventListener('input', renderSidebar);
-  $('#open-toc').addEventListener('click', openToc);
-  $('#close-toc').addEventListener('click', () => closeToc(true));
-  $('#drawer-backdrop').addEventListener('click', () => closeToc(true));
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') closeToc(true);
-    if (event.key === 'Tab' && $('#sidebar').classList.contains('open')) {
-      const items = [...$('#sidebar').querySelectorAll('button:not(:disabled), input:not(:disabled), a[href]')];
-      if (!items.length) return;
-      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items.at(-1).focus(); }
-      else if (!event.shiftKey && document.activeElement === items.at(-1)) { event.preventDefault(); items[0].focus(); }
+  $('#download-button').addEventListener('click',() => $('#download-dialog').showModal());
+  $('#about-button').addEventListener('click',() => $('#about-dialog').showModal());
+  $('#chapter-search').addEventListener('input',renderToc);
+  $('#saved-reading').addEventListener('click',event => {
+    const target = event.target.closest('[data-saved]');
+    if (!target) return;
+    $('#toc-dialog').close();
+    goToPage(pageForPosition(target.dataset.saved === 'bookmark' ? bookmarks[currentBook.id] : lastRead[currentBook.id]));
+  });
+  $('#page-form').addEventListener('submit',event => {
+    event.preventDefault();
+    if ($('#page-input').checkValidity()) goToPage(Number($('#page-input').value) - 1);
+  });
+  $('#page-progress').addEventListener('input',event => goToPage(Number(event.target.value) - 1,false));
+  document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click',() => button.closest('dialog').close()));
+  document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('click',event => {
+    if (event.target === dialog) {
+      const rect = dialog.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
     }
+  }));
+  document.addEventListener('click',event => {
+    const link = event.target.closest('a[href^="#"]');
+    if (!link) return;
+    if (link.classList.contains('skip-link')) {
+      event.preventDefault(); $('#book-stage').focus(); return;
+    }
+    event.preventDefault();
+    link.closest('dialog')?.close();
+    const nextHash = link.getAttribute('href');
+    if (location.hash === nextHash) navigate();
+    else location.hash = nextHash;
   });
-  window.matchMedia('(min-width:901px)').addEventListener('change', () => closeToc());
-  $('#about-button').addEventListener('click', () => $('#about-dialog').showModal());
-  document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
-  document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('click', event => { if(event.target === dialog) { const rect = dialog.getBoundingClientRect(); if(event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close(); } }));
-  $('#about-content').innerHTML = `<p class="series-description">${escapeHTML(data.series.description)}</p>${data.series.author ? `<p>بقلم ${escapeHTML(data.series.author)}</p>` : ''}${data.books.map(book => `<section class="series-book"><a href="#${book.id}/intro">${escapeHTML(book.title)}</a><p>${escapeHTML(book.description)}</p></section>`).join('')}`;
-  $('#about-content').addEventListener('click', event => { if(event.target.closest('a')) $('#about-dialog').close(); });
-  window.addEventListener('hashchange', () => navigate());
-  navigate(true);
+  document.addEventListener('keydown',event => {
+    if (!book || document.querySelector('dialog[open]') || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.target.closest('input,textarea,select,button,a,[contenteditable="true"]')) return;
+    if (event.key === 'ArrowLeft') { event.preventDefault(); turn('next'); }
+    else if (event.key === 'ArrowRight') { event.preventDefault(); turn('previous'); }
+    else if (event.key === 'Home') { event.preventDefault(); goToPage(0); }
+    else if (event.key === 'End') { event.preventDefault(); goToPage(pages.length - 1); }
+  });
+  window.addEventListener('hashchange',navigate);
+  window.addEventListener('resize',() => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (!book || rebuilding || JSON.stringify(dimensions()) === lastDimensions) return;
+      buildReader(currentPosition());
+    },180);
+  });
 }
-
-fetch('data/books.json').then(response => {
-  if (!response.ok) throw new Error('Book content could not be loaded');
-  return response.json();
-}).then(result => { data = result; initialize(); }).catch(error => {
+async function initialize() {
+  applyTheme(storage.read('theme','light'));
+  document.documentElement.style.setProperty('--body-size',fontSize + 'px');
+  const response = await fetch('data/books.json');
+  if (!response.ok) throw new Error('Book content unavailable');
+  data = await response.json();
+  await document.fonts.ready;
+  $('#about-content').innerHTML = '<p>' + escapeHTML(data.series.description) + '</p><p>بقلم ' + escapeHTML(data.series.author) + '</p>' + data.books.map(item => '<section class="series-book"><a href="#' + item.id + '/intro">' + escapeHTML(item.title) + '</a><p>' + escapeHTML(item.description) + '</p></section>').join('');
+  wireEvents();
+  navigate();
+}
+initialize().catch(error => {
   console.error(error);
-  $('#reading-content').innerHTML = '<div class="error-state"><h1>تعذّر فتح الكتاب</h1><p>أعد تحميل الصفحة، أو افتح النسخة الكاملة مباشرة.</p><a class="secondary-button" href="downloads/alkatib.html">فتح نسخة القراءة</a></div>';
+  $('#book-stage').innerHTML = '<div class="error-state"><h1>تعذّر فتح الكتاب</h1><p><a href="downloads/alkatib.html">افتح نسخة القراءة الكاملة</a> أو أعد تحميل الصفحة.</p></div>';
 });

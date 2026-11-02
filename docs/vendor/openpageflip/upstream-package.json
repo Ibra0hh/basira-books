@@ -1,0 +1,44 @@
+{
+  "name": "@openpageflip/core",
+  "version": "0.7.0",
+  "description": "Realistic page-flip effect for HTML content. Framework-agnostic successor to StPageFlip.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benhonda/openpageflip.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://openpageflip.shittylittleapps.com",
+  "bugs": "https://github.com/benhonda/openpageflip/issues",
+  "keywords": [
+    "page-flip",
+    "flipbook",
+    "book",
+    "page turn",
+    "stpageflip",
+    "typescript"
+  ],
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./package.json": "./package.json"
+  },
+  "unpkg": "./dist/index.iife.js",
+  "jsdelivr": "./dist/index.iife.js",
+  "devDependencies": {
+    "page-flip": "2.0.7"
+  }
+}
