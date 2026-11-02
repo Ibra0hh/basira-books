@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f4ec">
+  <meta name="description" content="البصيرة — سلسلة كتب لإبراهيم محمد عباس العادلي. اقرأ مخطط الكاتب وتابع نمو المسودة، أو نزّل نسخة للقراءة.">
+  <title>الكاتب — البصيرة</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/fonts/Amiri-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#reading-content">انتقل إلى النص</a>
+  <header class="site-header">
+    <a class="brand" href="#alkatib/intro" aria-label="البصيرة، الصفحة الأولى">
+      <span>البصيرة</span>
+      <svg viewBox="0 0 64 35" aria-hidden="true"><path d="M32 30C23 20 12 17 2 18v10c11-1 21 0 30 4 9-4 19-5 30-4V18c-10-1-21 2-30 12Z"/><path d="M32 30C25 15 16 7 7 6v16M32 30C39 15 48 7 57 6v16M32 30V13"/></svg>
+    </a>
+    <div class="header-actions">
+      <button class="text-button" id="about-button">عن السلسلة</button>
+      <span class="header-divider" aria-hidden="true"></span>
+      <button class="icon-button" id="theme-button" aria-label="تفعيل الوضع الليلي" title="الوضع الليلي"></button>
+    </div>
+  </header>
+  <nav class="books-nav" id="books-nav" aria-label="كتب سلسلة البصيرة"></nav>
+  <div class="reading-layout">
+    <aside class="sidebar" id="sidebar" aria-label="فهرس الكتاب">
+      <div class="sidebar-heading"><h2>فهرس الكتاب</h2><button class="icon-button mobile-only" id="close-toc" aria-label="إغلاق الفهرس">×</button></div>
+      <label class="search-field"><input id="chapter-search" type="search" placeholder="ابحث في الفصول" autocomplete="off" aria-label="ابحث في فصول الكتاب"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></label>
+      <p id="search-status" class="sr-only" role="status"></p>
+      <nav id="chapter-nav" aria-label="فصول الكتاب"></nav>
+      <div class="saved-reading" id="saved-reading"></div>
+      <p class="sidebar-note">تُحدَّث هذه المسودة مع تقدّم الكتابة.</p>
+    </aside>
+    <button class="drawer-backdrop" id="drawer-backdrop" tabindex="-1" aria-label="إغلاق الفهرس" hidden></button>
+    <main class="reader" id="reader">
+      <div class="reading-toolbar">
+        <div class="toolbar-title"><button class="icon-button mobile-only" id="open-toc" aria-label="فتح فهرس الفصول" aria-expanded="false" aria-controls="sidebar"></button><span id="current-book-label">الكاتب</span></div>
+        <div class="reading-controls"><button class="icon-button type-button" id="font-increase" aria-label="تكبير النص" title="تكبير النص">A<sup>+</sup></button><button class="icon-button type-button" id="font-decrease" aria-label="تصغير النص" title="تصغير النص">A<sup>−</sup></button><span class="header-divider" aria-hidden="true"></span><button class="icon-button" id="bookmark-button" aria-label="حفظ موضع القراءة" title="حفظ موضع القراءة" aria-pressed="false"></button></div>
+      </div>
+      <article id="reading-content" tabindex="-1"><p class="loading">جارٍ فتح الكتاب…</p></article>
+      <nav id="chapter-pagination" class="chapter-pagination" aria-label="التنقل بين الفصول"></nav>
+      <footer class="reader-footer"><span>البصيرة · نسخة قيد الكتابة</span><a href="https://github.com/Ibra0hh/basira-books" target="_blank" rel="noopener noreferrer">المشروع على GitHub <span aria-hidden="true">↗</span></a></footer>
+    </main>
+  </div>
+  <dialog id="download-dialog" aria-labelledby="download-title"><div class="dialog-heading"><h2 id="download-title">خذ الكتاب معك</h2><button class="icon-button" data-close-dialog aria-label="إغلاق نافذة التنزيل">×</button></div><p>تنزيل الإصدار الحالي من «الكاتب»: فهرس ومخطط الفصول، مع توضيح حالة المسودة.</p><div class="download-options"><a href="downloads/alkatib.epub" download="alkatib.epub"><strong>كتاب إلكتروني <bdi>EPUB</bdi></strong><span>للقراءة في تطبيقات الكتب، مع فهرس عربي.</span></a><a href="downloads/alkatib.md" download="alkatib.md"><strong>نسخة نصية <bdi>Markdown</bdi></strong><span>نص يمكن الاحتفاظ به وفتحه وتحريره.</span></a><a href="downloads/alkatib.html" target="_blank" rel="noopener"><strong>طباعة أو حفظ <bdi>PDF</bdi></strong><span>يفتح الكتاب بتنسيق للطباعة؛ اختر «حفظ بصيغة PDF».</span></a></div><p class="dialog-note">التنزيلات تشمل محتوى النسخة المنشورة فقط.</p></dialog>
+  <dialog id="about-dialog" aria-labelledby="about-title"><div class="dialog-heading"><h2 id="about-title">عن البصيرة</h2><button class="icon-button" data-close-dialog aria-label="إغلاق نافذة عن السلسلة">×</button></div><div id="about-content"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <noscript><p class="no-script">فعّل JavaScript لتصفّح الفصول، أو <a href="downloads/alkatib.html">افتح النسخة الكاملة للقراءة</a>.</p></noscript>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "basira-books",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "المكتبة الإلكترونية لسلسلة البصيرة",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/build.mjs --check",
+    "preview": "python -m http.server 4173 --directory docs"
+  }
+}

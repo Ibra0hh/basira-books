@@ -1,0 +1,44 @@
+{
+  "repository": "https://github.com/google/fonts",
+  "commit": "6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec",
+  "license": "SIL Open Font License 1.1",
+  "files": [
+    {
+      "file": "Amiri-Regular.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/amiri/Amiri-Regular.ttf",
+      "bytes": 431116,
+      "sha256": "ab391c4147d054c48976e98322ad0eefe1427aa0e0502a12a4c75d80a70cfcd7",
+      "family": "Amiri",
+      "style": "normal",
+      "weight": 400,
+      "licenseFile": "Amiri-OFL.txt"
+    },
+    {
+      "file": "Amiri-Bold.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/amiri/Amiri-Bold.ttf",
+      "bytes": 413480,
+      "sha256": "cfccb794268e7d573d857e6d6a67f89cf8a053e8ffd85dfa0c8ec1bb36fc4827",
+      "family": "Amiri",
+      "style": "normal",
+      "weight": 700,
+      "licenseFile": "Amiri-OFL.txt"
+    },
+    {
+      "file": "NotoSansArabic.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/notosansarabic/NotoSansArabic%5Bwdth%2Cwght%5D.ttf",
+      "bytes": 844676,
+      "sha256": "63111b5b2e074dd48cc67692e0a2726d86ee94c1c37fe8598257b7b4e87e869e",
+      "family": "Noto Sans Arabic",
+      "style": "normal",
+      "weight": [
+        100,
+        900
+      ],
+      "width": [
+        62.5,
+        100
+      ],
+      "licenseFile": "NotoSansArabic-OFL.txt"
+    }
+  ]
+}

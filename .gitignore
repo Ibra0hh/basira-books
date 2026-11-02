@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+*.log
+.cache/
+tmp/
+qa/
+docs-internal/
+
+# Generated reader data and downloads are intentionally committed for Pages.
